@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>6개장 4발면 · 6학년 4반</title>
+  <meta name="description" content="6학년 4반 전용 교실 도구 모음">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍜</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#/">
+      <span class="brand-cup">🍜</span>
+      <span class="brand-text"><b>6개장 4발면</b><small>6학년 4반</small></span>
+    </a>
+    <nav class="nav" id="nav">
+      <a href="#/" data-page="home">홈</a>
+      <a href="#/pick" data-page="pick">번호 뽑기</a>
+      <a href="#/seat" data-page="seat">자리 뽑기</a>
+      <a href="#/timer" data-page="timer">타이머</a>
+      <a href="#/posts" data-page="posts">게시물</a>
+      <a href="#/groups" data-page="groups">모둠 뽑기</a>
+      <a href="#/noise" data-page="noise">소음 측정</a>
+    </nav>
+    <div class="top-right">
+      <a class="mini-timer" id="miniTimer" href="#/timer" hidden></a>
+      <button class="icon-btn" id="muteBtn" title="소리 켜기/끄기">🔊</button>
+      <button class="icon-btn" id="fullBtn" title="전체 화면">⛶</button>
+      <button class="teacher-btn" id="teacherBtn">🔒 선생님</button>
+    </div>
+  </header>
+
+  <main id="app" class="page"></main>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
