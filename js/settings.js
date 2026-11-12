@@ -19,40 +19,40 @@ export function update() {
 
 function render() {
   if (!isTeacher()) {
-    root.innerHTML = `<div class="empty big">🔒 선생님만 들어올 수 있는 곳이에요.</div>`;
+    root.innerHTML = `<div class="empty big">선생님만 들어올 수 있는 곳이에요.</div>`;
     return;
   }
   cfg = cfg || JSON.parse(JSON.stringify({ ...DEFAULT_CONFIG, ...state.config }));
   root.innerHTML = `
     <header class="page-head">
       <div>
-        <h1>⚙️ 반 설정</h1>
-        <p class="muted">여기서 바꾼 내용은 "저장"을 눌러야 모든 친구들 화면에 반영돼요.</p>
+        <h1>반 설정</h1>
+        <p class="dim">여기서 바꾼 내용은 "저장"을 눌러야 모든 친구들 화면에 반영돼요.</p>
       </div>
-      <button class="btn primary" id="sSave">💾 저장</button>
+      <button class="btn green huge" id="sSave">저장</button>
     </header>
 
-    <section class="card">
+    <section class="pn set">
       <h2>학생 번호</h2>
       <label class="field">마지막 번호 <input type="number" id="sCount" min="1" max="60" value="${cfg.count}"> 번</label>
-      <p class="muted small">번호를 누를 때마다 <b class="tag b">남</b> → <b class="tag g">여</b> → <b class="tag x">없는 번호</b> 순서로 바뀌어요. (전학 간 번호는 "없는 번호"로)</p>
+      <p class="soft">번호를 누를 때마다 <b class="tag b">남</b> <b class="tag g">여</b> <b class="tag x">없는 번호</b> 순서로 바뀌어요. (전학 간 번호는 "없는 번호"로)</p>
       <div class="num-grid" id="sNums"></div>
-      <p class="muted small" id="sNumInfo"></p>
+      <p class="soft" id="sNumInfo"></p>
     </section>
 
-    <section class="card">
+    <section class="pn set">
       <h2>자리 배치</h2>
       <div class="row">
         <label class="field">가로(칸) <input type="number" id="sCols" min="1" max="10" value="${cfg.cols}"></label>
         <label class="field">세로(줄) <input type="number" id="sRows" min="1" max="10" value="${cfg.rows}"></label>
       </div>
-      <label class="check"><input type="checkbox" id="sGender" ${cfg.genderOn ? 'checked' : ''}> 옆자리 짝을 최대한 남녀로 맞추기 <span class="muted small">(남는 경우에만 남남·여여·혼자)</span></label>
-      <p class="muted small">자리를 누르면 "없는 자리"로 바뀌어요. 칠판이 위쪽이에요.</p>
-      <div class="room edit"><div class="board">칠판</div><div class="desks" id="sDesks"></div></div>
-      <p class="muted small" id="sSeatInfo"></p>
+      <label class="check"><input type="checkbox" id="sGender" ${cfg.genderOn ? 'checked' : ''}> 옆자리 짝을 최대한 남녀로 맞추기 <span class="soft">(남는 경우에만 남남·여여·혼자)</span></label>
+      <p class="soft">자리를 누르면 "없는 자리"로 바뀌어요. 칠판이 위쪽이에요.</p>
+      <div class="board-bar">칠판</div><div class="desk-grid" id="sDesks"></div>
+      <p class="soft" id="sSeatInfo"></p>
     </section>
 
-    <section class="card">
+    <section class="pn set">
       <h2>선생님 비밀번호 바꾸기</h2>
       <form class="row" id="sPwForm">
         <input type="password" id="sPw" placeholder="새 비밀번호 (4자 이상)" minlength="4" maxlength="64" autocomplete="new-password" required>
@@ -69,7 +69,7 @@ function render() {
     drawDesks();
   });
   $('#sNums', root).addEventListener('click', (e) => {
-    const n = +e.target.dataset?.n;
+    const n = +e.target.closest('[data-n]')?.dataset.n;
     if (!n) return;
     const girl = cfg.girls.includes(n);
     const out = cfg.excluded.includes(n);
@@ -129,7 +129,7 @@ function drawNums() {
   let html = '';
   for (let n = 1; n <= cfg.count; n++) {
     const kind = cfg.excluded.includes(n) ? 'x' : cfg.girls.includes(n) ? 'g' : 'b';
-    html += `<button class="num ${kind}" data-n="${n}">${n}<small>${{ x: '없음', g: '여', b: '남' }[kind]}</small></button>`;
+    html += `<button class="chip ${kind}" data-n="${n}"><span>${n}<small>${{ x: '없음', g: '여', b: '남' }[kind]}</small></span></button>`;
   }
   $('#sNums', root).innerHTML = html;
   const total = cfg.count - cfg.excluded.length;
@@ -144,7 +144,7 @@ function drawDesks() {
   for (let i = 0; i < cfg.rows * cfg.cols; i++) {
     const c = i % cfg.cols;
     const gap = cfg.genderOn && c % 2 === 1 && c < cfg.cols - 1 ? ' gap' : '';
-    html += `<button class="desk ${cfg.off.includes(i) ? 'none' : 'shown'}${gap}" data-i="${i}"></button>`;
+    html += `<button class="${cfg.off.includes(i) ? 'none' : ''}${gap}" data-i="${i}" aria-label="자리"></button>`;
   }
   el.innerHTML = html;
   const students = cfg.count - cfg.excluded.length;
@@ -152,7 +152,7 @@ function drawDesks() {
   const info = $('#sSeatInfo', root);
   info.textContent =
     seats < students
-      ? `⚠️ 자리 ${seats}개 · 학생 ${students}명 → 자리가 ${students - seats}개 모자라요.`
+      ? `자리 ${seats}개 · 학생 ${students}명 → 자리가 ${students - seats}개 모자라요.`
       : seats > students
         ? `자리 ${seats}개 · 학생 ${students}명 → 뒤쪽 ${seats - students}자리는 비워 둬요.`
         : `자리 ${seats}개 · 학생 ${students}명 → 딱 맞아요!`;

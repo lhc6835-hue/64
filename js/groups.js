@@ -6,7 +6,7 @@ let busy = false;
 let opts = local.get('groups.opts', { count: 4, balance: true });
 let last = local.get('groups.last', null); // 마지막 결과 (이 기기에만 저장)
 
-const NAMES = ['🍜', '🥢', '🌶️', '🥚', '🧅', '🍥', '🥬', '🍄', '🧄', '🥕'];
+const FLAGS = ['#e2452f', '#ffcc3d', '#53b8e8', '#5cbd5a', '#ff8fb8', '#7a5cc8', '#ff9a3c', '#fffaf0', '#2d7bbd', '#2f8a4a'];
 
 export function enter(el) {
   root = el;
@@ -15,8 +15,8 @@ export function enter(el) {
   el.innerHTML = `
     <header class="page-head">
       <div>
-        <h1>👥 모둠 뽑기</h1>
-        <p class="muted">번호를 섞어서 모둠으로 공평하게 나눠요.</p>
+        <h1>모둠 뽑기</h1>
+        <p class="dim">번호를 섞어서 모둠으로 공평하게 나눠요.</p>
       </div>
     </header>
     <div class="controls left">
@@ -24,9 +24,9 @@ export function enter(el) {
         <select id="gCount">${[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option value="${n}">${n}모둠</option>`).join('')}</select>
       </label>
       <label class="check" id="gBalanceWrap"><input type="checkbox" id="gBalance"> 남녀 골고루 섞기</label>
-      <button class="btn primary huge" id="gGo">👥 모둠 나누기!</button>
+      <button class="btn red huge" id="gGo">모둠 나누기!</button>
     </div>
-    <p class="muted" id="gInfo"></p>
+    <p class="dim" id="gInfo"></p>
     <div class="deck" id="gDeck"></div>
     <div class="groups" id="gOut"></div>`;
   $('#gCount', el).value = opts.count;
@@ -75,7 +75,7 @@ function make() {
 function boxes(count) {
   $('#gOut', root).innerHTML = Array.from(
     { length: count },
-    (_, i) => `<div class="group"><h3>${NAMES[i % NAMES.length]} ${i + 1}모둠</h3><div class="group-body" data-g="${i}"></div></div>`
+    (_, i) => `<div class="pn group"><h3><i class="flag" style="background:${FLAGS[i % FLAGS.length]}"></i>${i + 1}모둠</h3><div class="group-body" data-g="${i}"></div></div>`
   ).join('');
 }
 

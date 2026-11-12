@@ -1,26 +1,26 @@
-import { $, $$, state, numbers, local, rint, sleep, sfx, confetti, confirmBox } from './core.js';
+import { $, numbers, local, rint, sleep, sfx, confetti, confirmBox } from './core.js';
+import { Stage } from './stage.js';
+import { gachaScene, W, H } from './scenes/gacha.js';
 
 // 이 기기에만 저장: 이미 뽑힌 번호, 설정
 let picked = local.get('pick.done', []);
 let opts = local.get('pick.opts', { noRepeat: true, speed: 'normal', many: 1 });
 let busy = false;
 let root = null;
+let stage = null;
+let scene = null;
 
-const SPEED = { fast: 1400, normal: 2800, slow: 4600 };
+const SPEED = { fast: 0.35, normal: 1, slow: 1.9 };
 
 export function enter(el) {
   root = el;
   el.innerHTML = `
-    <div class="stage pick-stage">
-      <div class="stage-lights"></div>
-      <p class="stage-caption" id="pickCaption">버튼을 누르면 시작!</p>
-      <div class="pick-number" id="pickNumber">?</div>
-      <div class="pick-multi" id="pickMulti"></div>
-      <div class="balls" id="balls"></div>
+    <div class="screen">
+      <div class="bezel" id="pickHost"><div class="say over" id="pickSay">버튼을 누르면 캡슐이 나와요</div></div>
     </div>
 
     <div class="controls">
-      <button class="btn primary huge" id="pickGo">🎰 뽑기! <kbd>Space</kbd></button>
+      <button class="btn red huge" id="pickGo">뽑기! <kbd>Space</kbd></button>
       <label class="field">한 번에
         <select id="pickMany">${[1, 2, 3, 4, 5].map((n) => `<option value="${n}">${n}명</option>`).join('')}</select>
       </label>
@@ -32,9 +32,23 @@ export function enter(el) {
         </select>
       </label>
       <label class="check"><input type="checkbox" id="pickNoRepeat"> 뽑힌 번호는 빼기</label>
-      <button class="btn ghost" id="pickReset">처음부터 다시</button>
+      <button class="btn dark" id="pickReset">처음부터 다시</button>
     </div>
-    <p class="muted center" id="pickInfo"></p>`;
+    <div class="history" id="pickHistory"></div>
+    <p class="hint" id="pickInfo"></p>`;
+
+  stage = new Stage($('#pickHost', el), { w: W, h: H, reserve: 150 });
+  scene = gachaScene(stage, {
+    tick: (u) => sfx.tick(0.7 + u * 0.7),
+    drop: () => sfx.blip(),
+    bounce: () => sfx.tick(0.5),
+    beat: () => sfx.heart(),
+    pop: () => {
+      sfx.thud();
+      sfx.fanfare();
+    },
+  });
+  stage.start(scene);
 
   $('#pickMany', el).value = opts.many;
   $('#pickSpeed', el).value = opts.speed;
@@ -42,7 +56,7 @@ export function enter(el) {
   const saveOpts = () => {
     opts = { many: +$('#pickMany', el).value, speed: $('#pickSpeed', el).value, noRepeat: $('#pickNoRepeat', el).checked };
     local.set('pick.opts', opts);
-    drawBalls();
+    refresh();
   };
   ['pickMany', 'pickSpeed', 'pickNoRepeat'].forEach((id) => $('#' + id, el).addEventListener('change', saveOpts));
   $('#pickGo', el).addEventListener('click', go);
@@ -51,22 +65,22 @@ export function enter(el) {
     if (picked.length && !(await confirmBox('뽑힌 번호 기록을 모두 지우고 처음부터 다시 할까요?', '다시 하기'))) return;
     picked = [];
     local.set('pick.done', picked);
-    $('#pickNumber', el).textContent = '?';
-    $('#pickNumber', el).className = 'pick-number';
-    $('#pickMulti', el).innerHTML = '';
-    $('#pickCaption', el).textContent = '버튼을 누르면 시작!';
-    drawBalls();
+    scene.reset();
+    $('#pickSay', el).textContent = '버튼을 누르면 캡슐이 나와요';
+    refresh();
   });
   addEventListener('keydown', onKey);
-  drawBalls();
+  refresh();
 }
 
 export function leave() {
   removeEventListener('keydown', onKey);
-  root = null;
+  stage?.destroy();
+  stage = scene = root = null;
+  busy = false;
 }
 export function update() {
-  if (!busy) drawBalls();
+  if (!busy && root) refresh();
 }
 
 function onKey(e) {
@@ -81,19 +95,20 @@ function pool() {
   return opts.noRepeat ? all.filter((n) => !picked.includes(n)) : all;
 }
 
-function drawBalls() {
+function refresh(justNow = []) {
   if (!root) return;
   const all = numbers();
-  $('#balls', root).innerHTML = all
-    .map((n) => `<span class="ball ${opts.noRepeat && picked.includes(n) ? 'done' : ''}" data-n="${n}">${n}</span>`)
-    .join('');
   const left = pool().length;
+  scene.setCount(left);
+  $('#pickHistory', root).innerHTML = opts.noRepeat
+    ? all.map((n) => `<span class="chip ${picked.includes(n) ? (justNow.includes(n) ? 'pop' : '') : 'off'}">${n}</span>`).join('')
+    : '';
   $('#pickInfo', root).textContent = opts.noRepeat
     ? left
-      ? `남은 번호 ${left}명 · 뽑힌 번호 ${all.length - left}명`
-      : '모든 번호를 다 뽑았어요! "처음부터 다시"를 눌러 주세요.'
-    : `전체 ${all.length}명 중에서 뽑아요 (같은 번호가 또 나올 수 있어요)`;
-  $('#pickGo', root).disabled = !left;
+      ? `남은 번호 ${left}명 · 뽑힌 번호 ${all.length - left}명 (노란 칸이 뽑힌 번호)`
+      : '모든 번호를 다 뽑았어요. "처음부터 다시"를 눌러 주세요.'
+    : `전체 ${all.length}명 중에서 뽑아요. 같은 번호가 또 나올 수 있어요.`;
+  $('#pickGo', root).disabled = !left || busy;
 }
 
 async function go() {
@@ -103,73 +118,31 @@ async function go() {
   busy = true;
   $('#pickGo', root).disabled = true;
   const count = Math.min(opts.many, candidates.length);
-  const multi = $('#pickMulti', root);
-  multi.innerHTML = '';
+  const say = $('#pickSay', root);
+  const got = [];
 
   for (let i = 0; i < count; i++) {
-    candidates = pool().filter((n) => !$$('.chip', multi).some((c) => +c.textContent === n));
+    candidates = pool().filter((n) => !got.includes(n));
     const target = candidates[rint(candidates.length)];
-    // 여러 명 뽑을 때 두 번째부터는 조금 빠르게
-    const dur = SPEED[opts.speed] * (i === 0 ? 1 : 0.6);
-    await spin(candidates, target, dur, count > 1 ? `${i + 1}번째 주인공은…` : '과연 누가 될까…');
-    if (!root) return (busy = false);
+    say.classList.remove('alert');
+    say.textContent = count > 1 ? `${i + 1}번째 캡슐을 뽑는 중…` : '두구두구… 누가 나올까?';
+    // 여러 명을 뽑을 때 두 번째부터는 조금 빠르게
+    await scene.run(target, SPEED[opts.speed] * (i === 0 ? 1 : 0.6), opts.noRepeat);
+    if (!root) return;
+    got.push(target);
     if (opts.noRepeat) {
       picked.push(target);
       local.set('pick.done', picked);
     }
-    if (count > 1) {
-      multi.insertAdjacentHTML('beforeend', `<span class="chip pop">${target}</span>`);
-      if (i < count - 1) await sleep(900);
-    }
+    say.innerHTML = count > 1 ? got.map((n) => `<b>${n}번</b>`).join(' · ') : `<b>${target}번</b> 당첨!`;
+    say.classList.add('alert');
+    setTimeout(() => say.classList.remove('alert'), 900);
+    confetti(90);
+    refresh([target]);
+    $('#pickGo', root).disabled = true;
+    if (i < count - 1) await sleep(1300);
+    if (!root) return;
   }
   busy = false;
-  if (root) drawBalls();
-}
-
-// 숫자가 빠르게 돌다가 점점 느려지며 멈추는 연출
-async function spin(candidates, target, dur, caption) {
-  const num = $('#pickNumber', root);
-  const cap = $('#pickCaption', root);
-  const balls = new Map($$('.ball', root).map((b) => [+b.dataset.n, b]));
-  num.className = 'pick-number spinning';
-  cap.textContent = caption;
-  $('.pick-stage', root).classList.add('live');
-
-  // 점점 길어지는 간격 만들기
-  const delays = [];
-  let d = 45;
-  let sum = 0;
-  while (sum < dur) {
-    delays.push(d);
-    sum += d;
-    d = Math.min(d * 1.13, 520);
-  }
-  let last = null;
-  for (let i = 0; i < delays.length; i++) {
-    if (!root) return;
-    const isLast = i === delays.length - 1;
-    let n = target;
-    if (!isLast && candidates.length > 1) {
-      do n = candidates[rint(candidates.length)]; while (n === last || (i === delays.length - 2 && n === target));
-    }
-    balls.get(last)?.classList.remove('lit');
-    balls.get(n)?.classList.add('lit');
-    num.textContent = n;
-    last = n;
-    sfx.tick(0.8 + (i / delays.length) * 0.6);
-    if (isLast) break;
-    await sleep(delays[i]);
-  }
-  // 마지막 한 박자 멈칫 → 쾅!
-  num.classList.add('hold');
-  sfx.heart();
-  await sleep(650);
-  if (!root) return;
-  num.className = 'pick-number boom';
-  cap.textContent = `🎉 ${target}번! 🎉`;
-  balls.get(target)?.classList.remove('lit');
-  balls.get(target)?.classList.add('win');
-  $('.pick-stage', root).classList.remove('live');
-  sfx.fanfare();
-  confetti(160);
+  refresh();
 }

@@ -1,4 +1,6 @@
-import { $, local, sfx, isMuted } from './core.js';
+import { $, local, sfx, isMuted, modal } from './core.js';
+import { Stage } from './stage.js';
+import { fuseScene, W, H } from './scenes/fuse.js';
 
 // 타이머는 다른 화면으로 가도 계속 돌아가도록 화면과 따로 관리
 const t = {
@@ -38,7 +40,7 @@ function loop() {
   if (t.remain <= 0) {
     t.running = false;
     t.ringing = true;
-    document.title = '⏰ 시간 끝!';
+    document.title = '시간 끝!';
     beep(sfx.alarm);
     // 끌 때까지 알람 반복 (최대 1분)
     let n = 0;
@@ -109,44 +111,39 @@ function add(sec) {
 /* ---------- 화면 ---------- */
 let root = null;
 let off = null;
-const R = 180;
-const CIRC = 2 * Math.PI * R;
+let stage = null;
 
 export function enter(el) {
   root = el;
   el.innerHTML = `
-    <div class="stage timer-stage" id="timerStage">
-      <div class="dial">
-        <svg viewBox="0 0 400 400" aria-hidden="true">
-          <circle class="dial-bg" cx="200" cy="200" r="${R}"/>
-          <circle class="dial-fg" id="dialFg" cx="200" cy="200" r="${R}" stroke-dasharray="${CIRC}" transform="rotate(-90 200 200)"/>
-        </svg>
-        <div class="dial-inner">
-          <div class="timer-time" id="timerTime" title="눌러서 시간 직접 입력">05:00</div>
-          <div class="timer-msg" id="timerMsg"></div>
-        </div>
-      </div>
-      <div class="timer-adjust">
-        <button class="btn round" data-add="-60">−1분</button>
-        <button class="btn round" data-add="-10">−10초</button>
-        <button class="btn round" data-add="10">＋10초</button>
-        <button class="btn round" data-add="60">＋1분</button>
-      </div>
+    <div class="screen">
+      <div class="bezel" id="timerHost" title="눌러서 시간 직접 입력"></div>
     </div>
-
     <div class="controls">
-      <button class="btn primary huge" id="timerGo">▶ 시작 <kbd>Space</kbd></button>
-      <button class="btn" id="timerReset">↺ 처음으로</button>
-      <span class="presets">
-        ${[1, 3, 5, 10, 15, 20, 30].map((m) => `<button class="btn ghost small" data-min="${m}">${m}분</button>`).join('')}
-      </span>
+      <button class="btn small" data-add="-60">-1분</button>
+      <button class="btn small" data-add="-10">-10초</button>
+      <button class="btn red huge" id="timerGo">시작 <kbd>Space</kbd></button>
+      <button class="btn small" data-add="10">+10초</button>
+      <button class="btn small" data-add="60">+1분</button>
     </div>
-    <div class="controls toggles">
-      <label class="check"><input type="checkbox" id="optSound"> 🔔 경고음 켜기</label>
+    <div class="controls tight">
+      <button class="btn dark small" id="timerReset">처음으로</button>
+      <span class="presets">
+        ${[1, 3, 5, 10, 15, 20, 30].map((m) => `<button class="btn dark small" data-min="${m}">${m}분</button>`).join('')}
+      </span>
+      <button class="btn dark small" id="timerEdit">직접 입력</button>
+    </div>
+    <div class="controls tight">
+      <label class="check"><input type="checkbox" id="optSound"> 경고음 켜기</label>
       <label class="check"><input type="checkbox" id="optWarn1"> 1분 남았을 때 알림</label>
       <label class="check"><input type="checkbox" id="optLast10"> 마지막 10초 똑딱 소리</label>
     </div>
-    <p class="muted center" id="timerHint"></p>`;
+    <p class="hint" id="timerHint"></p>`;
+
+  stage = new Stage($('#timerHost', el), { w: W, h: H, reserve: 150 });
+  stage.start(fuseScene(stage, () => t));
+  stage.canvas.style.cursor = 'pointer';
+  stage.canvas.addEventListener('click', () => !t.running && !t.ringing && editTime());
 
   el.addEventListener('click', onClick);
   for (const [id, key] of [['optSound', 'sound'], ['optWarn1', 'warn1'], ['optLast10', 'last10']]) {
@@ -167,7 +164,8 @@ export function enter(el) {
 export function leave() {
   removeEventListener('keydown', onKey);
   off?.();
-  root = null;
+  stage?.destroy();
+  stage = root = null;
 }
 
 function onKey(e) {
@@ -187,54 +185,49 @@ function toggle() {
 }
 
 function onClick(e) {
-  if (e.target.tagName === 'INPUT') return;
-  const b = e.target.closest('button, #timerTime');
+  const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.add) add(+b.dataset.add);
   else if (b.dataset.min) setTotal(+b.dataset.min * 60);
   else if (b.id === 'timerGo') toggle();
   else if (b.id === 'timerReset') reset();
-  else if (b.id === 'timerTime' && !t.running && !t.ringing && !$('input', b)) editTime();
+  else if (b.id === 'timerEdit') editTime();
 }
 
-// 시간 숫자를 눌러 직접 입력
+// 시간을 직접 입력
 function editTime() {
-  const el = $('#timerTime', root);
+  if (t.running) pause();
   const m = Math.floor(t.remain / 60);
   const s = Math.round(t.remain % 60);
-  el.innerHTML = `<input id="inMin" type="number" min="0" max="99" value="${m}"><span>:</span><input id="inSec" type="number" min="0" max="59" value="${String(s).padStart(2, '0')}">`;
-  const inMin = $('#inMin', el);
-  const inSec = $('#inSec', el);
-  inMin.focus();
-  inMin.select();
-  let done = false;
-  const commit = () => {
-    if (done) return;
-    done = true;
-    setTotal((parseInt(inMin.value, 10) || 0) * 60 + Math.min(59, parseInt(inSec.value, 10) || 0));
-  };
-  el.addEventListener('focusout', () => setTimeout(() => !el.contains(document.activeElement) && commit(), 0));
-  el.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') commit();
+  const dlg = modal(`
+    <h2>시간 직접 입력</h2>
+    <form class="stack" id="timeForm">
+      <div class="row">
+        <label class="field"><input id="inMin" type="number" min="0" max="99" value="${m}"> 분</label>
+        <label class="field"><input id="inSec" type="number" min="0" max="59" value="${s}"> 초</label>
+      </div>
+      <div class="row end">
+        <button type="button" class="btn" data-close>취소</button>
+        <button class="btn red">맞추기</button>
+      </div>
+    </form>`);
+  $('#inMin', dlg).select();
+  $('#timeForm', dlg).addEventListener('submit', (e) => {
+    e.preventDefault();
+    setTotal((parseInt($('#inMin', dlg).value, 10) || 0) * 60 + Math.min(59, parseInt($('#inSec', dlg).value, 10) || 0));
+    dlg.close();
   });
 }
 
 function render() {
   if (!root) return;
-  const time = $('#timerTime', root);
-  if (!$('input', time)) time.textContent = fmt(t.ringing ? 0 : t.remain);
-  const ratio = t.total > 0 ? Math.min(1, t.remain / t.total) : 0;
-  $('#dialFg', root).style.strokeDashoffset = CIRC * (1 - (t.ringing ? 0 : ratio));
-  const stage = $('#timerStage', root);
-  const sec = Math.ceil(t.remain);
-  stage.classList.toggle('warn', !t.ringing && sec <= 60 && sec > 10 && t.total > 60 && (t.running || t.remain < t.total));
-  stage.classList.toggle('danger', !t.ringing && sec <= 10 && (t.running || t.remain < t.total));
-  stage.classList.toggle('ringing', t.ringing);
-  $('#timerMsg', root).textContent = t.ringing ? '시간 끝! ⏰' : t.running ? '' : t.remain < t.total ? '잠깐 멈춤' : '';
-  $('#timerGo', root).innerHTML = t.ringing ? '🔕 알람 끄기 <kbd>Space</kbd>' : t.running ? '⏸ 멈춤 <kbd>Space</kbd>' : '▶ 시작 <kbd>Space</kbd>';
-  $('#timerHint', root).textContent =
-    opts.sound && isMuted()
-      ? '⚠️ 위쪽 🔇 버튼으로 전체 소리가 꺼져 있어서 경고음이 안 들려요.'
-      : '시간 숫자를 누르면 직접 입력할 수 있어요. ↑↓ 키로 1분씩 조절돼요.';
+  $('#timerGo', root).innerHTML = t.ringing ? '알람 끄기 <kbd>Space</kbd>' : t.running ? '멈춤 <kbd>Space</kbd>' : '시작 <kbd>Space</kbd>';
+  $('#timerGo', root).className = 'btn huge ' + (t.ringing ? 'yellow' : t.running ? 'blue' : 'red');
+  $('#timerHint', root).textContent = t.ringing
+    ? '시간 끝! 버튼이나 Space 를 누르면 알람이 꺼져요.'
+    : opts.sound && isMuted()
+      ? '위쪽 스피커 버튼으로 전체 소리가 꺼져 있어서 경고음이 안 들려요.'
+      : !t.running && t.remain < t.total
+        ? '잠깐 멈춤'
+        : '화면을 누르면 시간을 직접 입력할 수 있어요. 위/아래 화살표 키로 1분씩 조절돼요.';
 }

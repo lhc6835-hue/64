@@ -149,14 +149,14 @@ export async function requireTeacher() {
   if (teacherPw) return teacherPw;
   return new Promise((resolve) => {
     const dlg = modal(`
-      <h2>🔒 선생님 확인</h2>
-      <p class="muted">게시물·알림장·설정을 바꾸려면 선생님 비밀번호가 필요해요.</p>
+      <h2>선생님 확인</h2>
+      <p class="soft">게시물·알림장·설정을 바꾸려면 선생님 비밀번호가 필요해요.</p>
       <form id="loginForm" class="stack">
         <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="current-password" required>
         <p class="form-error" id="loginErr" hidden></p>
         <div class="row end">
-          <button type="button" class="btn ghost" data-close>취소</button>
-          <button class="btn primary">확인</button>
+          <button type="button" class="btn" data-close>취소</button>
+          <button class="btn red">확인</button>
         </div>
       </form>`);
     let done = false;
@@ -224,8 +224,8 @@ export function confirmBox(message, okLabel = '확인') {
     const dlg = modal(`
       <p class="confirm-msg">${esc(message)}</p>
       <div class="row end">
-        <button class="btn ghost" data-close>취소</button>
-        <button class="btn primary" id="okBtn">${esc(okLabel)}</button>
+        <button class="btn" data-close>취소</button>
+        <button class="btn red" id="okBtn">${esc(okLabel)}</button>
       </div>`);
     let ok = false;
     $('#okBtn', dlg).addEventListener('click', () => ((ok = true), dlg.close()));
@@ -292,7 +292,7 @@ function noise(dur, { vol = 0.2, at = 0, freq = 1800 } = {}) {
 export const sfx = {
   unlock: () => !muted && ctx(),
   tick: (pitch = 1) => tone(880 * pitch, 0.05, { type: 'square', vol: 0.07 }),
-  blip: () => tone(520, 0.08, { type: 'triangle', vol: 0.15 }),
+  blip: () => tone(520, 0.07, { type: 'square', vol: 0.09, slide: 260 }),
   // 두구두구두구 (dur초 동안)
   drum(dur = 1.5) {
     for (let t = 0; t < dur; t += 0.06) noise(0.05, { at: t, vol: 0.1 + 0.25 * (t / dur), freq: 900 });
@@ -305,11 +305,12 @@ export const sfx = {
     tone(140, 0.3, { vol: 0.5, slide: -100 });
     noise(0.15, { vol: 0.3, freq: 400 });
   },
-  pop: () => tone(660, 0.12, { type: 'triangle', vol: 0.25, slide: 500 }),
+  pop: () => tone(660, 0.12, { type: 'square', vol: 0.12, slide: 500 }),
   fanfare() {
-    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, { type: 'triangle', vol: 0.22, at: i * 0.09 }));
-    [1047, 1319, 1568].forEach((f) => tone(f, 0.7, { type: 'triangle', vol: 0.14, at: 0.4 }));
-    noise(0.4, { vol: 0.12, at: 0.4, freq: 6000 });
+    // 게임기에서 아이템 얻을 때 나는 짧은 가락
+    [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.11, { type: 'square', vol: 0.1, at: i * 0.075 }));
+    [1047, 1319, 1568].forEach((f) => tone(f, 0.5, { type: 'square', vol: 0.06, at: 0.4 }));
+    [262, 392].forEach((f) => tone(f, 0.5, { type: 'triangle', vol: 0.2, at: 0.4 }));
   },
   warn() {
     tone(880, 0.15, { type: 'square', vol: 0.12 });
@@ -322,10 +323,11 @@ export const sfx = {
   },
 };
 
-/* ---------- 폭죽 ---------- */
-const COLORS = ['#e8352b', '#ffc531', '#2fa36b', '#3d8bfd', '#ff7ab6', '#ffffff'];
+/* ---------- 색종이 (화면 전체, 굵은 픽셀) ---------- */
+const COLORS = ['#e2452f', '#ffcc3d', '#5cbd5a', '#53b8e8', '#ff8fb8', '#fffaf0', '#7a5cc8'];
+const CELL = 6; // 색종이 한 칸의 크기(px)
 let cv, cx, parts = [], raf = 0;
-export function confetti(amount = 140, origin = { x: 0.5, y: 0.45 }) {
+export function confetti(amount = 140, origin = { x: 0.5, y: 0.4 }) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (!cv) {
     cv = document.createElement('canvas');
@@ -333,42 +335,38 @@ export function confetti(amount = 140, origin = { x: 0.5, y: 0.45 }) {
     document.body.append(cv);
     cx = cv.getContext('2d');
   }
-  cv.width = innerWidth;
-  cv.height = innerHeight;
+  cv.width = Math.ceil(innerWidth / CELL);
+  cv.height = Math.ceil(innerHeight / CELL);
   for (let i = 0; i < amount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const sp = 6 + Math.random() * 14;
+    const sp = 1 + Math.random() * 3.2;
     parts.push({
       x: origin.x * cv.width,
       y: origin.y * cv.height,
-      vx: Math.cos(ang) * sp,
-      vy: Math.sin(ang) * sp - 6,
-      s: 6 + Math.random() * 8,
-      r: Math.random() * 6,
-      vr: (Math.random() - 0.5) * 0.4,
+      vx: Math.cos(ang) * sp * 1.4,
+      vy: Math.sin(ang) * sp - 1.6,
+      ph: Math.random() * 6,
       c: COLORS[(Math.random() * COLORS.length) | 0],
-      life: 90 + Math.random() * 50,
+      life: 80 + Math.random() * 60,
     });
   }
   if (!raf) raf = requestAnimationFrame(step);
 }
 function step() {
   cx.clearRect(0, 0, cv.width, cv.height);
-  parts = parts.filter((p) => p.life > 0 && p.y < cv.height + 30);
+  parts = parts.filter((p) => p.life > 0 && p.y < cv.height + 2);
   for (const p of parts) {
-    p.vy += 0.45;
-    p.vx *= 0.985;
-    p.x += p.vx;
+    p.vy += 0.07;
+    p.vx *= 0.975;
+    p.vy *= 0.985;
+    p.x += p.vx + Math.sin(p.ph + p.life * 0.15) * 0.25;
     p.y += p.vy;
-    p.r += p.vr;
     p.life--;
-    cx.save();
-    cx.translate(p.x, p.y);
-    cx.rotate(p.r);
-    cx.globalAlpha = Math.min(1, p.life / 30);
+    if (p.life < 20 && p.life % 4 < 2) continue; // 사라질 때는 깜빡임
     cx.fillStyle = p.c;
-    cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
-    cx.restore();
+    // 팔랑거리는 느낌: 넓적했다 가늘어졌다
+    const wide = Math.sin(p.ph + p.life * 0.3) > 0;
+    cx.fillRect(Math.round(p.x), Math.round(p.y), wide ? 2 : 1, wide ? 1 : 2);
   }
   raf = parts.length ? requestAnimationFrame(step) : 0;
   if (!raf) cx.clearRect(0, 0, cv.width, cv.height);
