@@ -753,18 +753,22 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
  prog(.78,'박자·리듬 분석 중');await Yd();
  // ---- sound events ("moments")
  let M=on.filter(o=>o.t>=.3&&o.t<=dur-.1).map(o=>({t:o.t,s:o.s,per:Math.min(1.2,o.per),lo:o.lo,sn:Math.min(1.2,o.sn),hat:Math.min(1.2,o.hat),ton:Math.min(1.2,o.ton),wide:o.wide,rf:o.q>0,mel:0,m:0,dur:0,ms:0}));
- if(PT){const mt=M.map(m=>m.t);let lm=null,ln=null;for(const nn of PT.notes){if(nn.sal<.45||nn.e-nn.t<.09)continue;
+ if(PT){const mt=M.map(m=>m.t),n0=M.length;let lm=null,ln=null;
+  // energy of one pitch's own harmonics in frame f (to tell a re-struck or swelling note from drums passing through it)
+  const hE=(hb,f)=>{let e=0;f=Math.max(0,Math.min(F-1,f));for(const b of hb)e+=Math.max(S[f*nb+b-1],S[f*nb+b],S[f*nb+b+1]);return e},hbOf=m=>{const f0=440*Math.pow(2,(m-69)/12),hb=[];for(let h=1;h<=5;h++){const b=Math.round(h*f0*n/sr);if(b<nb-1)hb.push(b)}return hb};
+  for(const nn of PT.notes){if(nn.sal<.45||nn.e-nn.t<.09)continue;const hb=hbOf(nn.m);
    // the same pitch carrying on (vibrato / a bend split the track) is one long note unless something pitched is struck again
    const cont=ln&&lm&&nn.t-ln.e<.12&&Math.abs(nn.m-ln.m)<=1;let bi=-1,bv=0;
-   for(let i=lowB(mt,nn.t-.15);i<M.length&&M[i].t<=nn.t+.09;i++){const o=M[i];if(o.mel||o.s<.22||(cont&&!(o.ton>=.35&&o.wide<.7)))continue;const dt=o.t-nn.t-.01,v=(o.ton+.25+.2*Math.min(1,o.s))/(1+Math.abs(dt)/(dt<0?.07:.05));if(v>bv){bv=v;bi=i}}
+   for(let i=lowB(mt,nn.t-.15);i<n0&&M[i].t<=nn.t+.09;i++){const o=M[i];if(o.mel||o.s<.22||(cont&&!(o.ton>=.35&&o.wide<.7)))continue;const dt=o.t-nn.t-.01,v=(o.ton+.25+.2*Math.min(1,o.s))/(1+Math.abs(dt)/(dt<0?.07:.05));if(v>bv){bv=v;bi=i}}
    if(bi>=0){const m=M[bi];m.mel=1;m.m=nn.m;m.dur=Math.max(.05,nn.e-m.t);m.ms=Math.min(1,nn.sal/1.1);lm=m;ln=nn}else if(cont){lm.dur=Math.max(lm.dur,nn.e-lm.t);ln=nn}
    else{lm=null;ln=nn;if(nn.sal>=.55&&nn.e-nn.t>=.14){// a sung / legato note with no percussive attack: find where its own harmonics come in
-     const f0=440*Math.pow(2,(nn.m-69)/12),hb=[];for(let h=1;h<=5;h++){const b=Math.round(h*f0*n/sr);if(b<nb-1)hb.push(b)}
-     const fa=Math.max(1,fr(nn.t-.13)),fz=Math.min(F-2,fr(nn.t+.09)),E=[];for(let f=fa-1;f<=fz+1;f++){let e=0;for(const b of hb)e+=Math.max(S[f*nb+b-1],S[f*nb+b],S[f*nb+b+1]);E.push(e)}
+     const fa=Math.max(1,fr(nn.t-.13)),fz=Math.min(F-2,fr(nn.t+.09)),E=[];for(let f=fa-1;f<=fz+1;f++)E.push(hE(hb,f));
      let bf=-1,bd=0;for(let i=2;i<E.length-1;i++){const d=E[i]-E[i-2];if(d>bd){bd=d;bf=i}}
      if(bf>=0){let pre=0,post=0;for(let i=Math.max(0,bf-5);i<bf-1;i++)pre=Math.max(pre,E[i]);for(let i=bf;i<Math.min(E.length,bf+3);i++)post=Math.max(post,E[i]);
       if(post>=1.7*pre+1e-9){// time the start of the swell (30% of the way up), not its steepest point, so slow attacks are not placed late
-       const th=pre+.3*(post-pre);let ic=bf;while(ic>1&&E[ic-1]>=th)ic--;const fx=ic-(E[ic]>E[ic-1]?(E[ic]-th)/(E[ic]-E[ic-1]):0),t=tc(fa-1+fx)-.012;if(!M.some(o=>Math.abs(o.t-t)<.05)){const m={t,s:.45,per:0,lo:0,sn:0,hat:0,ton:.5,wide:0,rf:false,mel:1,m:nn.m,dur:Math.max(.05,nn.e-t),ms:Math.min(1,nn.sal/1.1),soft:1};M.push(m);lm=m}}}}}}
+       const th=pre+.3*(post-pre);let ic=bf;while(ic>1&&E[ic-1]>=th)ic--;const fx=ic-(E[ic]>E[ic-1]?(E[ic]-th)/(E[ic]-E[ic-1]):0),t=tc(fa-1+fx)-.012;
+       if(!M.some(o=>Math.abs(o.t-t)<.05)){const m={t,s:.45,per:0,lo:0,sn:0,hat:0,ton:.5,wide:0,rf:false,mel:1,m:nn.m,dur:Math.max(.05,nn.e-t),ms:Math.min(1,nn.sal/1.1),soft:1};M.push(m);lm=m}}}}}
+  }
   M.sort((a,b)=>a.t-b.t);const mg=[];for(const m of M){const l=mg[mg.length-1];if(l&&m.t-l.t<.026){const k=m.s>l.s?m:l,o=k===m?l:m;for(const f of['s','per','lo','sn','hat','ton','wide'])k[f]=Math.max(k[f],o[f]);if(o.mel&&!k.mel){k.mel=1;k.m=o.m;k.dur=o.dur;k.ms=o.ms}mg[mg.length-1]=k}else mg.push(m)}M=mg}
  const NM=M.length;if(NM<8)return null;
  // ---- grid position, final time and metric weight of every event
