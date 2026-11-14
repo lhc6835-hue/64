@@ -732,7 +732,7 @@ function cxChart(d,S,G){const SLs=d>=1?G.SL:[];if(SLs.length)S=S.filter(s=>!SLs.
  {// the same figure gets the same hands: remember the lanes of each bar-figure the first time it appears and pull repeats towards it
   const mem=new Map(),bonus=new Int8Array(N).fill(-1);let i=0;while(i<N){const b=S[i].bar;let j=i;while(j<N&&S[j].bar===b)j++;if(j-i>=3){let key='';for(let k=i;k<j;k++)key+=S[k].sig+(S[k].m?':'+(S[k].m-S[i].m):S[k].dk?'d'+S[k].dk:'')+(S[k].k===1?'h':'')+',';const m=mem.get(key);if(m)for(let k=i;k<j;k++)bonus[k]=m[k-i];else mem.set(key,Array.from(L.subarray(i,j)))}i=j}
   L=pass(bonus)}
- const out=[];for(let i=0;i<N;i++){const s=S[i],l=L[i],n={t:+s.t.toFixed(4),l};if(s.k===1){n.e=+s.e.toFixed(4);if(s.tk)n.tk=s.tk.map(v=>+v.toFixed(4))}if(s.k===2)n.f=1;if(s.m&&s.ms>=.5)n.m=s.m;if(G.dbg)n.src=s.mel?'m':s.dk?'d'+s.dk:'t';out.push(n);
+ const out=[];for(let i=0;i<N;i++){const s=S[i],l=L[i],n={t:+s.t.toFixed(4),l};if(s.k===1){n.e=+s.e.toFixed(4);if(s.tk)n.tk=s.tk.map(v=>+v.toFixed(4))}if(s.k===2)n.f=1;if(s.m&&s.ms>=.5)n.m=s.m;if(G.dbg)n.src=s.soft?'s':s.mel?'m':s.dk?'d'+s.dk:'t';out.push(n);
   if(s.ch&&!inHold(i)){let bo=null,bc=9;for(const o of(l<2?[2,3]:[0,1])){let cc=Math.abs(o-(3-l))*.1;for(const j of[i-1,i+1])if(j>=0&&j<N&&L[j]===o&&Math.abs(S[j].t-s.t)<.14)cc+=5;if(cc<bc){bc=cc;bo=o}}if(bo!=null&&bc<5){const m={t:n.t,l:bo};if(s.ch===2)m.f=1;out.push(m)}}}
  for(const z of SLs)out.push({t:+z.a.toFixed(4),l:z.path[0][1],e:+z.e.toFixed(4),p:z.path.map(q=>[+q[0].toFixed(4),q[1]]),tk:z.tk.map(v=>+v.toFixed(4))});
  return out.sort((a,b)=>a.t-b.t)}
@@ -750,9 +750,19 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
  prog(.42,'음정 흐름 읽는 중');await Yd();const PT=await cxPitch(x,sr,HQ||CRES?chs:null,ds,async p=>{prog(.42+.33*p,'음정 흐름 읽는 중');await Yd()},FAST?1024:HQ?256:512);
  prog(.78,'박자·리듬 분석 중');await Yd();
  // ---- sound events ("moments")
- let M=on.map(o=>({t:o.t,s:o.s,per:Math.min(1.2,o.per),lo:o.lo,sn:Math.min(1.2,o.sn),hat:Math.min(1.2,o.hat),ton:Math.min(1.2,o.ton),wide:o.wide,rf:o.q>0,mel:0,m:0,dur:0,ms:0}));
- if(PT){const mt=M.map(m=>m.t);for(const nn of PT.notes){if(nn.sal<.45||nn.e-nn.t<.09)continue;let bi=-1,bv=0;for(let i=lowB(mt,nn.t-.15);i<M.length&&M[i].t<=nn.t+.09;i++){if(M[i].mel||M[i].s<.22)continue;const dt=M[i].t-nn.t-.01,v=(M[i].ton+.25+.2*Math.min(1,M[i].s))/(1+Math.abs(dt)/(dt<0?.07:.05));if(v>bv){bv=v;bi=i}}
-   if(bi>=0){const m=M[bi];m.mel=1;m.m=nn.m;m.dur=Math.max(.05,nn.e-m.t);m.ms=Math.min(1,nn.sal/1.1)}}
+ let M=on.filter(o=>o.t>=.3&&o.t<=dur-.1).map(o=>({t:o.t,s:o.s,per:Math.min(1.2,o.per),lo:o.lo,sn:Math.min(1.2,o.sn),hat:Math.min(1.2,o.hat),ton:Math.min(1.2,o.ton),wide:o.wide,rf:o.q>0,mel:0,m:0,dur:0,ms:0}));
+ if(PT){const mt=M.map(m=>m.t);let lm=null,ln=null;for(const nn of PT.notes){if(nn.sal<.45||nn.e-nn.t<.09)continue;
+   // the same pitch carrying on (vibrato / a bend split the track) is one long note unless something pitched is struck again
+   const cont=ln&&lm&&nn.t-ln.e<.12&&Math.abs(nn.m-ln.m)<=1;let bi=-1,bv=0;
+   for(let i=lowB(mt,nn.t-.15);i<M.length&&M[i].t<=nn.t+.09;i++){const o=M[i];if(o.mel||o.s<.22||(cont&&!(o.ton>=.35&&o.wide<.7)))continue;const dt=o.t-nn.t-.01,v=(o.ton+.25+.2*Math.min(1,o.s))/(1+Math.abs(dt)/(dt<0?.07:.05));if(v>bv){bv=v;bi=i}}
+   if(bi>=0){const m=M[bi];m.mel=1;m.m=nn.m;m.dur=Math.max(.05,nn.e-m.t);m.ms=Math.min(1,nn.sal/1.1);lm=m;ln=nn}else if(cont){lm.dur=Math.max(lm.dur,nn.e-lm.t);ln=nn}
+   else{lm=null;ln=nn;if(nn.sal>=.55&&nn.e-nn.t>=.14){// a sung / legato note with no percussive attack: find where its own harmonics come in
+     const f0=440*Math.pow(2,(nn.m-69)/12),hb=[];for(let h=1;h<=5;h++){const b=Math.round(h*f0*n/sr);if(b<nb-1)hb.push(b)}
+     const fa=Math.max(1,fr(nn.t-.13)),fz=Math.min(F-2,fr(nn.t+.09)),E=[];for(let f=fa-1;f<=fz+1;f++){let e=0;for(const b of hb)e+=Math.max(S[f*nb+b-1],S[f*nb+b],S[f*nb+b+1]);E.push(e)}
+     let bf=-1,bd=0;for(let i=2;i<E.length-1;i++){const d=E[i]-E[i-2];if(d>bd){bd=d;bf=i}}
+     if(bf>=0){let pre=0,post=0;for(let i=Math.max(0,bf-5);i<bf-1;i++)pre=Math.max(pre,E[i]);for(let i=bf;i<Math.min(E.length,bf+3);i++)post=Math.max(post,E[i]);
+      if(post>=1.7*pre+1e-9){// time the start of the swell (30% of the way up), not its steepest point, so slow attacks are not placed late
+       const th=pre+.3*(post-pre);let ic=bf;while(ic>1&&E[ic-1]>=th)ic--;const fx=ic-(E[ic]>E[ic-1]?(E[ic]-th)/(E[ic]-E[ic-1]):0),t=tc(fa-1+fx)-.012;if(!M.some(o=>Math.abs(o.t-t)<.05)){const m={t,s:.45,per:0,lo:0,sn:0,hat:0,ton:.5,wide:0,rf:false,mel:1,m:nn.m,dur:Math.max(.05,nn.e-t),ms:Math.min(1,nn.sal/1.1),soft:1};M.push(m);lm=m}}}}}}
   M.sort((a,b)=>a.t-b.t);const mg=[];for(const m of M){const l=mg[mg.length-1];if(l&&m.t-l.t<.026){const k=m.s>l.s?m:l,o=k===m?l:m;for(const f of['s','per','lo','sn','hat','ton','wide'])k[f]=Math.max(k[f],o[f]);if(o.mel&&!k.mel){k.mel=1;k.m=o.m;k.dur=o.dur;k.ms=o.ms}mg[mg.length-1]=k}else mg.push(m)}M=mg}
  const NM=M.length;if(NM<8)return null;
  // ---- grid position, final time and metric weight of every event
@@ -786,6 +796,7 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
    m.base=v[0]+.15*Math.min(1,v[1]);m.an=an;m.i=i}
   for(let i=0;i<NM;i++){const m=M[i];let gb=9,ga=9;for(let j=i-1;j>=0&&m.t-M[j].t<1;j--)if(M[j].base>=.3){gb=m.t-M[j].t;break}for(let j=i+1;j<NM&&M[j].t-m.t<1;j++)if(M[j].base>=.3){ga=M[j].t-m.t;break}
    m.weak=!m.dk&&m.an<.1&&m.s<(m.mel?.5:.85);m.imp=(m.base*(.85+.15*m.an)+(m.mel?.2*Math.min(1,m.dur/.7):0)+(gb>=.45?.1:0)+(ga>=.45?.06:0))*(m.mel?.82+.18*m.lev:.6+.4*m.lev)*(m.weak?.6:1)}}
+ if(opt.seed)for(const m of M)m.imp*=1+(RNG()-.5)*.14;
  for(const c of CRASH){let bi=-1;for(const m of M){const dt=Math.abs(m.tt-c.t);if(dt>.075)continue;if(bi<0||m.imp>M[bi].imp)bi=m.i}if(bi>=0){M[bi].cr=1;M[bi].imp+=.35}}
  // a run of lead notes climbing (or falling) into a big section change becomes one slide that follows its contour
  const SL=[];for(const c of CRASH){if(!c.bg)continue;const b=c.b-1;if(b<1||ROLE[b]==='break')continue;const ms=M.filter(m=>m.mel&&m.m&&m.tt>=bars[b]-.02&&m.tt<=c.t-.7*beat);if(ms.length<3)continue;const a=ms[0].tt,e=ms[ms.length-1].tt;if(e-a<1.4*beat||e-a>4.2*beat)continue;
@@ -808,7 +819,7 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
   {const best=new Map();for(const m of M){if(sel[m.i]||m.imp<p.fl||!okCls(m))continue;const k=m.bar*2+((m.tt-bars[m.bar])/barDur(m.bar)>=.5?1:0),o=best.get(k);if(!o||m.imp>o.imp)best.set(k,m)}
    for(const m of[...best.values()].sort((a,b)=>b.imp-a.imp)){if(cnt[m.bar]>=bud(m.bar)||!okGap(m.i)||!okRes(m))continue;take(m)}}
   for(const m of order){if(m.imp<p.fl)break;if(sel[m.i]||!okCls(m)||cnt[m.bar]>=bud(m.bar)||!okGap(m.i)||!okRes(m))continue;take(m)}
-  const Sd=[];for(let i=0;i<NM;i++)if(sel[i]){const m=M[i];Sd.push({t:m.tt,m:m.m,mel:m.mel,ms:m.ms,dur:m.dur,per:m.per,s:m.s,an:m.an,lev:m.lev,imp:m.imp,cr:m.cr,dk:m.dk,bar:m.bar,sig:m.sig})}
+  const Sd=[];for(let i=0;i<NM;i++)if(sel[i]){const m=M[i];Sd.push({t:m.tt,soft:m.soft,m:m.m,mel:m.mel,ms:m.ms,dur:m.dur,per:m.per,s:m.s,an:m.an,lev:m.lev,imp:m.imp,cr:m.cr,dk:m.dk,bar:m.bar,sig:m.sig})}
   charts.push(cxChart(d,Sd,G));prog(.82+.03*(d+1),'채보 다듬는 중');await Yd()}
  {// ABYSS: every sound that is really there, both hands on every accent, and a stream through the loudest stretches
   PR.push({g:.05,dn:99,fl:0,hm,hin:8,cth:.5,cgap:.09,csp:.9});for(const m of order){if(sel[m.i]||!(m.mel||m.dk||!m.weak))continue;const t=m.tt;let ok=1;for(let j=m.i-1;j>=0&&t-M[j].tt<.05;j--)if(sel[j]){ok=0;break}for(let j=m.i+1;ok&&j<NM&&M[j].tt-t<.05;j++)if(sel[j])ok=0;if(ok)sel[m.i]=1}
@@ -818,7 +829,7 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
    for(const v of(hot&&h>=.12?[t,t+h/2]:[t]))if(!has(v)&&!held(v))add.push({t:+v.toFixed(4),l:pat[pi++%8]})}
   charts.push(ab.concat(add).sort((a,b)=>a.t-b.t))}
  const PI={intro:0,verse:0,main:1,hype:2,break:3,build:4,climax:5,outro:0},sec=[];for(let b=0;b<NB;b++)if(!b||ROLE[b]!==ROLE[b-1])sec.push({t:bars[b],e:Math.max(1,lvl[b]),p:PI[ROLE[b]]});
- return{bpm:Math.round(60/beat),T8:beat/2,qdur:beat/4,g0:bt[0],beats:bt,bpb:B,mode:TP.mode,conf:TP.conf,charts,sec,crash:CRASH.map(c=>({t:c.t,bg:c.bg})),vis,visAuto:visA,parts,vocal:false,vfb:false,model:MOD,dbg:{ROLE,M,TP,PT:PT&&{notes:PT.notes}}}}
+ return{bpm:Math.round(60/beat),T8:beat/2,qdur:beat/4,g0:bt[0],beats:bt,bpb:B,mode:TP.mode,conf:TP.conf,charts,sec,crash:CRASH.map(c=>({t:c.t,bg:c.bg})),vis,visAuto:visA,parts,vocal:false,vfb:false,model:MOD,dbg:opt.debug?{ROLE,M,TP,PT:PT&&{notes:PT.notes}}:null}}
 /*F}*/
 
 function gridOff(p,sr,g0,P){const h=Math.max(1,Math.round(sr/1000)),n=Math.min(Math.floor(p.length/h)-1,90000),e=new Float32Array(n);
