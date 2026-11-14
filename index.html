@@ -619,7 +619,7 @@ function cxTempo(on,nv,hs,dur,chg,estep,nvT0,full){const F=nv.length,nm=boxS(nv,
  let stab=0;{let a=0,b=0,i=0;const k=2*Math.PI/tau;for(let c=4;c<dur;c+=4){while(i<nO&&ot[i]<c-4)i++;let cx=0,cy=0,sw=0;for(let j=i;j<nO&&ot[j]<=c+4;j++){const u=(ot[j]-t0)*k;cx+=ow[j]*Math.cos(u);cy+=ow[j]*Math.sin(u);sw+=ow[j]}if(sw<3)continue;const R=Math.hypot(cx,cy)/sw,ph=Math.atan2(cy,cx)/k;b+=R;if(Math.abs(ph)<=.012)a+=R}stab=b?a/b:0}
  const sG=scoreT(TG),sP=scoreT(TP);let TT=TG,mode='grid',sD=0,conf=sG;
  if(stab<.6&&sP>sG+.04){TT=TP;mode='track';conf=sP}
- if(full?stab<.9:(stab<.6&&conf<.62)){// neither fits well: let the beat tracker find its own way, then subdivide
+ if(stab<(full?.75:.6)&&(full||conf<.62)){// neither fits well: let the beat tracker find its own way, then subdivide
   const sdv=Math.sqrt(ns.reduce((u,v)=>u+v*v,0)/F)||1,o=Float32Array.from(ns,v=>v/sdv),mp=tau<.19?(tau<.095?8:4):2,bf=beatDP(o,mp*tau/hs,80),bd=[];
   for(const f of bf){let dx=0;if(f>0&&f<F-1&&ns[f]>=ns[f-1]&&ns[f]>=ns[f+1]){const a=ns[f-1],b=ns[f],c=ns[f+1],d=a-2*b+c;if(d<0)dx=.5*(a-c)/d}bd.push((f+dx)*hs+nvT0+FBIAS)}
   if(bd.length>8){const iv=[];for(let i=1;i<bd.length;i++)iv.push(bd[i]-bd[i-1]);const md=pctl(iv,.5),fx=[bd[0]];for(let i=1;i<bd.length;i++){const g=bd[i]-fx[fx.length-1],k=Math.round(g/md);if(k>=2&&g>1.6*md)for(let j=1;j<k;j++)fx.push(fx[fx.length-1]+g/k);fx.push(bd[i])}
@@ -650,7 +650,9 @@ function cxTempo(on,nv,hs,dur,chg,estep,nvT0,full){const F=nv.length,nm=boxS(nv,
  const Ch=fz(),Du=fz();{const c0=fz();for(let i=i0;i<=i1;i++)c0[i]=chg(TT[i]);const h=Math.max(1,Math.round(.2/tau));for(let i=i0;i<=i1;i++)Ch[i]=Math.max(0,c0[i]-.5*((c0[i-h]||0)+(c0[i+h]||0)))}{let lastI=-1;for(let i=i0;i<=i1;i++)if(A[i]>=ath){if(lastI>=0)Du[lastI]=Math.min(8,i-lastI)*Math.min(1,A[lastI]);lastI=i}}
  const pm=(z,m,p)=>{let s=0,c=0,all=0,ca=0;for(let i=i0;i<=i1;i++){all+=z[i];ca++;if(((i-p)%m+m)%m===0){s+=z[i];c++}}return c&&all?(s/c)/(all/ca):0};
  const vote=(cues,m)=>{const tot=new Float64Array(m),dbg=[];for(const[z,w]of cues){const v=[];for(let p=0;p<m;p++)v.push(pm(z,m,p));const mu=v.reduce((a,b)=>a+b,0)/m,sd=Math.sqrt(v.reduce((a,b)=>a+(b-mu)*(b-mu),0)/m);dbg.push(v.map(x=>+x.toFixed(2)));if(sd<1e-6)continue;const st=Math.min(1,sd/.25);for(let p=0;p<m;p++)tot[p]+=w*st*(v[p]-mu)/sd}return[tot,dbg]};
- const[pv_,pdb]=vote([[Sn,1.2],[Wd,1],[Ch,1],[Du,.8]],mb);let bp=0;for(let p=1;p<mb;p++)if(pv_[p]>pv_[bp])bp=p;const phs=pdb;
+ // where the snare-like hits sit apart from the main drum hits (two-step / skank feel) the snare is the off-beat and the kick marks the beat
+ const amx=z=>{let b=0,bv=-1;for(let p=0;p<mb;p++){const v=pm(z,mb,p);if(v>bv){bv=v;b=p}}return b},snEv=snOK&&amx(Sn)!==amx(Wd);
+ const[pv_,pdb]=vote(snEv?[[Sn,-1],[Lo,.8],[Wd,1],[Ch,1],[Du,.8]]:[[Sn,1.2],[Wd,1],[Ch,1],[Du,.8]],mb);let bp=0;for(let p=1;p<mb;p++)if(pv_[p]>pv_[bp])bp=p;const phs=pdb;
  // beats, then bars (3 or 4 beats) and the downbeat
  const bi=[];for(let i=((bp-((i0%mb)+mb)%mb)%mb+mb)%mb+i0-mb*8;i<NQ;i+=mb)if(i>=0)bi.push(i);
  const nB=bi.length,bLo=new Float32Array(nB),bSn=new Float32Array(nB),bCh=new Float32Array(nB),bEs=new Float32Array(nB),bW=new Float32Array(nB),bHh=new Float32Array(nB);const bl=mb*tau;
@@ -667,7 +669,7 @@ function cxTempo(on,nv,hs,dur,chg,estep,nvT0,full){const F=nv.length,nm=boxS(nv,
 // chroma-change and loudness-step probes (for beat phase, downbeats, section edges)
 function cxHarm(S,F,nb,sr,n,hs,fr){const pcb=new Int8Array(nb).fill(-1);for(let b=1;b<nb;b++){const f=b*sr/n;if(f>=80&&f<=5000)pcb[b]=((Math.round(12*Math.log2(f/440))+69)%12+12)%12}
  const CP=new Float64Array((F+1)*12),LfP=new Float64Array(F+1);for(let f=0;f<F;f++){const k=f*nb,o=(f+1)*12;for(let c=0;c<12;c++)CP[o+c]=CP[o-12+c];let s=0;for(let b=1;b<nb;b++){const v=S[k+b];s+=v;if(pcb[b]>=0)CP[o+pcb[b]]+=v}LfP[f+1]=LfP[f]+Math.log(1e-6+s)}
- const chg=t=>{const f=Math.max(0,Math.min(F,fr(t))),wd=Math.round(.35/hs),a=Math.max(0,f-wd),c=Math.min(F,f+wd);if(c-f<2||f-a<2)return 0;let uv=0,n1=0,n2=0;for(let k=0;k<12;k++){const u=CP[f*12+k]-CP[a*12+k],v=CP[c*12+k]-CP[f*12+k];uv+=u*v;n1+=u*u;n2+=v*v}return 1-uv/Math.sqrt(n1*n2+1e-12)};
+ const chg=(t,ws)=>{const f=Math.max(0,Math.min(F,fr(t))),wd=Math.round((ws||.35)/hs),a=Math.max(0,f-wd),c=Math.min(F,f+wd);if(c-f<2||f-a<2)return 0;let uv=0,n1=0,n2=0;for(let k=0;k<12;k++){const u=CP[f*12+k]-CP[a*12+k],v=CP[c*12+k]-CP[f*12+k];uv+=u*v;n1+=u*u;n2+=v*v}return 1-uv/Math.sqrt(n1*n2+1e-12)};
  const estep=(t,ws)=>{const f=Math.max(1,Math.min(F-1,fr(t))),wd=Math.max(4,Math.round(ws/hs)),a=Math.max(0,f-wd),c=Math.min(F,f+wd);if(f-a<2||c-f<2)return 0;return Math.abs((LfP[c]-LfP[f])/(c-f)-(LfP[f]-LfP[a])/(f-a))};
  return{chg,estep,CP,LfP}}
 // Lead-line pitch track: harmonic-sum salience on a long-window spectrum (optionally centre-channel weighted), Viterbi-smoothed, cut into notes.
@@ -687,8 +689,11 @@ async function cxPitch(x,sr,chs,ds,tick,hop){const n=2048,nb=Math.min(n/2,Math.r
  const R1=P+1,UV=.36,bp=new Uint8Array(F*R1);let V=new Float32Array(R1),nV=new Float32Array(R1);for(let k=0;k<P;k++)V[k]=SAL[k]/s90;V[P]=UV;
  for(let f=1;f<F;f++){for(let j=0;j<R1;j++){let bv=-1e9,bi=0;if(j<P){const a=Math.max(0,j-12),e=Math.min(P-1,j+12);for(let i=a;i<=e;i++){const d=i>j?i-j:j-i,v=V[i]-(d?.07+.028*d:0);if(v>bv){bv=v;bi=i}}const u=V[P]-.24;if(u>bv){bv=u;bi=P}nV[j]=bv+SAL[f*P+j]/s90}else{for(let i=0;i<P;i++){const v=V[i]-.24;if(v>bv){bv=v;bi=i}}if(V[P]>bv){bv=V[P];bi=P}nV[j]=bv+UV}bp[f*R1+j]=bi}const t=V;V=nV;nV=t}
  const pt=new Int8Array(F);{let bi=0;for(let j=1;j<R1;j++)if(V[j]>V[bi])bi=j;pt[F-1]=bi;for(let f=F-1;f>0;f--)pt[f-1]=bp[f*R1+pt[f]]}
- const tcp=f=>(f*hop+n/2)/sr,notes=[];for(let f=0;f<F;){if(pt[f]===P){f++;continue}const a=f,p0=pt[f];let sm=0;while(f<F&&pt[f]!==P&&Math.abs(pt[f]-p0)<=1){sm+=SAL[f*P+pt[f]]/s90;f++}
-  if((f-a)*hop/sr>=.065){const ps=[];for(let k=a;k<f;k++)ps.push(pt[k]);ps.sort((u,v)=>u-v);notes.push({t:tcp(a)-hop/sr*.5,e:tcp(f-1)+hop/sr*.5,m:lo+ps[ps.length>>1],sal:sm/(f-a),a,b:f})}}
+ // notes: a pitch change counts once the new pitch has held ~90 ms (a semitone wobble of vibrato does not split a note); 2+ semitones need only ~45 ms
+ const tcp=f=>(f*hop+n/2)/sr,notes=[],k1=Math.max(2,Math.round(.09*sr/hop)),k2=Math.max(1,Math.round(.045*sr/hop)),sg=new Int8Array(F);
+ {let cur=P;for(let f=0;f<F;f++){const p=pt[f];if(p!==cur){const need=(p===P||cur===P)?k2:Math.abs(p-cur)>=2?k2:k1;let ok=1;for(let g=1;g<need;g++)if(f+g>=F||pt[f+g]!==p){ok=0;break}if(ok)cur=p}sg[f]=cur}}
+ for(let f=0;f<F;){if(sg[f]===P){f++;continue}const a=f,p0=sg[f];let sm=0,c=0;while(f<F&&sg[f]===p0){if(pt[f]!==P){sm+=SAL[f*P+pt[f]]/s90;c++}f++}
+  if((f-a)*hop/sr>=.065&&c)notes.push({t:tcp(a)-hop/sr*.5,e:tcp(f-1)+hop/sr*.5,m:lo+p0,sal:sm/c,a,b:f})}
  return{notes,pt,F,P,lo,SAL,s90,tcp,hs:hop/sr}}
 /* ===== Cadrix engine v4 — part 2: sound events -> importance -> nested difficulty selection -> lanes ===== */
 // Lane cost between two consecutive notes (time-based; two-thumb ergonomics + pitch contour + drum-kit feel).
@@ -699,7 +704,7 @@ function cxStep(a,la,b,lb){const g=b.t-a.t,dl=lb-la,sh=(la<2)===(lb<2);let c=0;
  return c}
 function cxNode(b,l){let c=0;if(b.m)c+=.3*(l-b.tg)**2;else if(b.dk===1)c+=.22*Math.abs(l-1);else if(b.dk===2)c+=.22*Math.abs(l-2);else if(b.dk===3)c+=(l===0||l===3)?0:.18;return c}
 // Build one difficulty from the selected events.
-function cxChart(d,S,G){const N=S.length;if(!N)return[];const P=G.P[d],beat=G.beat;
+function cxChart(d,S,G){const SLs=d>=1?G.SL:[];if(SLs.length)S=S.filter(s=>!SLs.some(z=>s.t>z.a-.14&&s.t<z.e+.22));const N=S.length;if(!N)return[];const P=G.P[d],beat=G.beat;
  // long notes: a sustained lead note becomes a hold while it really rings
  let hEnd=-9;for(let i=0;i<N;i++){const s=S[i];s.k=0;s.e=0;s.ch=0;s.tk=null;if(s.t<hEnd+.02||!s.mel||s.dur<P.hm)continue;let end=Math.min(s.t+s.dur-.03,s.t+2.8),inside=0;
   for(let j=i+1;j<N&&S[j].t<end;j++){if(d<=1){end=Math.min(end,S[j].t-.16);break}if(++inside>P.hin||(S[j].mel&&S[j].dur>=P.hm&&S[j].t-s.t>.3)||(j+1<N&&S[j+1].t-S[j].t<.19&&S[j+1].t<end)){end=Math.min(end,S[j].t-.14);break}}
@@ -711,8 +716,9 @@ function cxChart(d,S,G){const N=S.length;if(!N)return[];const P=G.P[d],beat=G.be
   cand.sort((x,y)=>y[0]-x[0]);const tk=[];for(const[ac,i]of cand){const t=S[i].t,sp=P.csp*beat*(G.hl(t)?.7:1);if(tk.every(u=>Math.abs(u-t)>=sp)){S[i].ch=1;tk.push(t)}}}
  // flicks: section-opening crashes and the final hit
  {const free=i=>{const s=S[i];return!s.k&&!inHold(i)&&(i?s.t-S[i-1].t:9)>=.22&&(i+1<N?S[i+1].t-s.t:9)>=.22};
-  for(const c of G.crash){if(d===0&&!c.bg)continue;let bi=-1;for(let i=0;i<N;i++){const dt=Math.abs(S[i].t-c.t);if(dt>.075)continue;if(bi<0||S[i].imp>S[bi].imp)bi=i}if(bi>=0&&free(bi)){S[bi].k=2;if(d>=2)S[bi].ch=d>=4&&c.bg?2:1}}
+  for(const c of G.crash){if(d===0&&!c.bg)continue;let bi=-1;for(let i=0;i<N;i++){const dt=Math.abs(S[i].t-c.t);if(dt>.075)continue;if(bi<0||S[i].imp>S[bi].imp)bi=i}if(bi<0||S[bi].k||inHold(bi))continue;if(!free(bi)){if(d<2)continue;for(let j=bi-1;j>=0&&S[bi].t-S[j].t<.17;j--)if(!S[j].k)S[j].del=1;else{bi=-1;break}if(bi<0)continue;for(let j=bi+1;j<N&&S[j].t-S[bi].t<.17;j++)if(!S[j].k)S[j].del=1}S[bi].k=2;if(d>=2)S[bi].ch=d>=4&&c.bg?2:1}
   const z=S[N-1];if(!z.k&&(N<2||z.t-S[N-2].t>=.2)){z.k=2;z.ch=d>=3?2:z.ch}}
+ if(S.some(s=>s.del))return cxChart(d,S.filter(s=>!s.del),G);
  for(const s of S)if(s.k===1&&s.e-s.t>=1){const tk=G.ticks(s.t+.12,s.e-.1);if(tk.length>=2)s.tk=tk.slice(0,10)}
  // lanes: Viterbi over (lane, hand holding)
  for(const s of S)s.tg=s.m?Math.max(0,Math.min(3,G.tgt(s.t,s.m)+G.jit(s.t))):1.5;
@@ -728,12 +734,13 @@ function cxChart(d,S,G){const N=S.length;if(!N)return[];const P=G.P[d],beat=G.be
   L=pass(bonus)}
  const out=[];for(let i=0;i<N;i++){const s=S[i],l=L[i],n={t:+s.t.toFixed(4),l};if(s.k===1){n.e=+s.e.toFixed(4);if(s.tk)n.tk=s.tk.map(v=>+v.toFixed(4))}if(s.k===2)n.f=1;if(s.m&&s.ms>=.5)n.m=s.m;if(G.dbg)n.src=s.mel?'m':s.dk?'d'+s.dk:'t';out.push(n);
   if(s.ch&&!inHold(i)){let bo=null,bc=9;for(const o of(l<2?[2,3]:[0,1])){let cc=Math.abs(o-(3-l))*.1;for(const j of[i-1,i+1])if(j>=0&&j<N&&L[j]===o&&Math.abs(S[j].t-s.t)<.14)cc+=5;if(cc<bc){bc=cc;bo=o}}if(bo!=null&&bc<5){const m={t:n.t,l:bo};if(s.ch===2)m.f=1;out.push(m)}}}
+ for(const z of SLs)out.push({t:+z.a.toFixed(4),l:z.path[0][1],e:+z.e.toFixed(4),p:z.path.map(q=>[+q[0].toFixed(4),q[1]]),tk:z.tk.map(v=>+v.toFixed(4))});
  return out.sort((a,b)=>a.t-b.t)}
 async function forgeM(p,sr,prog,chs,opt){return forge(p,sr,prog,false,chs,opt)}
 async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{});const MOD={lentaris:1,andavel:1,prestix:1,crescel:1}[opt.mode]?opt.mode:'andavel',FAST=MOD==='prestix',HQ=MOD==='lentaris',CRES=MOD==='crescel';
  let rs_=(opt.seed||1)%2147483646+1;const RNG=()=>(rs_=rs_*16807%2147483647)/2147483647,JN=Array.from({length:128},()=>RNG()*2-1),jit=opt.seed?t=>{const u=Math.max(0,t)/4,i=Math.floor(u),f=u-i;return 1.1*(JN[i%128]*(1-f)+JN[(i+1)%128]*f)}:()=>0;
  const Yd=()=>new Promise(r=>setTimeout(r,0));prog=prog||(()=>{});
- const ds=sr0>30000?2:1,sr=sr0/ds,N=Math.floor(raw.length/ds),x=new Float32Array(N);for(let i=0;i<N;i++){let s=0;for(let j=0;j<ds;j++)s+=raw[i*ds+j];x[i]=s/ds}
+ const ds=Math.max(1,Math.round(sr0/22050)),sr=sr0/ds,N=Math.floor(raw.length/ds),x=new Float32Array(N);for(let i=0;i<N;i++){let s=0;for(let j=0;j<ds;j++)s+=raw[i*ds+j];x[i]=s/ds}
  const dur=N/sr;if(dur<15)return null;
  const n=1024,hop=256,nb=Math.min(n/2,Math.round(8500*n/sr)),hs=hop/sr,tc=f=>(f*hop+n/2)/sr,fr=t=>Math.round((t*sr-n/2)/hop);
  prog(.02,'음원 분석 중');await Yd();const{S,F}=await cxSpec(x,n,hop,nb,async p=>{prog(.02+.3*p,'음원 분석 중');await Yd()});
@@ -780,6 +787,9 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
   for(let i=0;i<NM;i++){const m=M[i];let gb=9,ga=9;for(let j=i-1;j>=0&&m.t-M[j].t<1;j--)if(M[j].base>=.3){gb=m.t-M[j].t;break}for(let j=i+1;j<NM&&M[j].t-m.t<1;j++)if(M[j].base>=.3){ga=M[j].t-m.t;break}
    m.weak=!m.dk&&m.an<.1&&m.s<(m.mel?.5:.85);m.imp=(m.base*(.85+.15*m.an)+(m.mel?.2*Math.min(1,m.dur/.7):0)+(gb>=.45?.1:0)+(ga>=.45?.06:0))*(m.mel?.82+.18*m.lev:.6+.4*m.lev)*(m.weak?.6:1)}}
  for(const c of CRASH){let bi=-1;for(const m of M){const dt=Math.abs(m.tt-c.t);if(dt>.075)continue;if(bi<0||m.imp>M[bi].imp)bi=m.i}if(bi>=0){M[bi].cr=1;M[bi].imp+=.35}}
+ // a run of lead notes climbing (or falling) into a big section change becomes one slide that follows its contour
+ const SL=[];for(const c of CRASH){if(!c.bg)continue;const b=c.b-1;if(b<1||ROLE[b]==='break')continue;const ms=M.filter(m=>m.mel&&m.m&&m.tt>=bars[b]-.02&&m.tt<=c.t-.7*beat);if(ms.length<3)continue;const a=ms[0].tt,e=ms[ms.length-1].tt;if(e-a<1.4*beat||e-a>4.2*beat)continue;
+  const f=ms[0],l=ms[ms.length-1],pk=ms.reduce((u,v)=>v.m>u.m?v:u);SL.push({a,e,path:pk.tt>a+.45*beat&&pk.tt<e-.45*beat&&pk.m-f.m>=3&&pk.m-l.m>=3?[[a,0],[pk.tt,3],[e,0]]:l.m>=f.m?[[a,0],[e,3]]:[[a,3],[e,0]],tk:ms.slice(1,-1).map(m=>m.tt)})}
  // ---- nested selection: EASY ⊂ NORMAL ⊂ HARD ⊂ EXPERT ⊂ INSANE, each level adds the next most important sounds that still fit the hands
  const cl=(v,a,b)=>Math.max(a,Math.min(b,v)),sv=opt.seed?1+(RNG()-.5)*.12:1,EF={intro:.6,verse:.8,main:1,hype:1.15,climax:1.3,break:.45,build:.95,outro:.7};
  const hm=cl(.9*beat,.42,.6),PR=[{g:cl(.75*beat,.3,.45),dn:1.35,fl:.42,hm:Math.max(.5,hm),hin:0,cth:9,cgap:.3,csp:99},{g:cl(.45*beat,.17,.26),dn:2.4,fl:.33,hm,hin:0,cth:1.15,cgap:.24,csp:8},{g:cl(.24*beat,.11,.16),dn:3.7,fl:.26,hm,hin:2,cth:.8,cgap:.17,csp:6},
@@ -788,7 +798,7 @@ async function forge(raw,sr0,prog,forceDP,chs,opt){opt=Object.assign({},opt||{})
  const mtt=Float64Array.from(M,m=>m.tt),tgt=(t,p)=>{const ps=[];for(let i=lowB(mtt,t-4);i<NM&&M[i].tt<=t+4;i++)if(M[i].m)ps.push(M[i].m);if(!ps.length)return 1.5;ps.sort((u,v)=>u-v);let a=ps[Math.floor(ps.length*.05)],c=ps[Math.min(ps.length-1,Math.floor(ps.length*.95))];if(c-a<5){const z=(a+c)/2;a=z-2.5;c=z+2.5}return 3*(p-a)/(c-a)};
  const snapEnd=t=>{let i=lowB(TT,t);if(i>0&&t-TT[i-1]<TT[i]-t)i--;i=Math.min(NQ-1,i);if(Math.abs(TT[i]-t)<=.05)return TT[i];if(i+1<NQ){const h=(TT[i]+TT[i+(TT[i]<t?1:-1)])/2;if(Math.abs(h-t)<=.04)return h}return t};
  const ticks=(a,b)=>{const r=[];for(let i=lowB(mtt,a);i<NM&&M[i].tt<b;i++)if(M[i].lev>=.6&&(M[i].per>=.45||M[i].sn>=.45)&&(!r.length||M[i].tt-r[r.length-1]>=.2))r.push(M[i].tt);return r};
- const G={dbg:opt.debug,P:PR,beat,crash:CRASH,hl:vH,hlb:CRES?.14:.08,tgt,jit,snapEnd,ticks};
+ const G={dbg:opt.debug,P:PR,beat,SL,crash:CRASH,hl:vH,hlb:CRES?.14:.08,tgt,jit,snapEnd,ticks};
  for(let d=0;d<5;d++){const p=PR[d],cnt=new Int16Array(NB);for(let i=0;i<NM;i++)if(sel[i])cnt[M[i].bar]++;
   const bud=b=>Math.max(1,Math.round(p.dn*sv*(EF[ROLE[b]]||1)*barDur(b))),okGap=i=>{const t=M[i].tt;for(let j=i-1;j>=0&&t-M[j].tt<p.g;j--)if(sel[j])return false;for(let j=i+1;j<NM&&M[j].tt-t<p.g;j++)if(sel[j])return false;return true};
   const resv=[],okRes=m=>{for(const r of resv)if(m.tt>r[0]+.04&&m.tt<r[1])return false;return true},take=m=>{sel[m.i]=1;cnt[m.bar]++;if(d<=1&&m.mel&&m.dur>=p.hm)resv.push([m.tt,m.tt+Math.min(m.dur,2.8)-.1])};
@@ -1135,7 +1145,7 @@ function drawAnalysis(){const h=$('#rh');if(!h||!G)return;const d=Math.min(devic
  const wp=G.wp;$('#rts').textContent=wp?`빨간 줄 = 미스 · 가장 많이 틀린 곳: ${wp.i+1}번 파트 (${fmt(wp.a)}–${fmt(wp.b)}) 미스 ${wp.k}개`:'미스 없이 깔끔해요!'}
 /*S{*/function spice(ns,DI){const E4=song.eng>=4,V=song.vis,B=song.beats,ix=t=>V&&V.L&&V.L.length?Math.max(0,Math.min(V.L.length-1,(t/V.dt)|0)):-1,en=t=>{const i=ix(t);return i<0?.5:V.L[i]},hl=t=>{const i=ix(t);return i>=0&&V.H[i]>.5};
  let N=ns.map(n=>({...n})).sort((a,b)=>a.t-b.t);const hand=l=>l<2?0:1,srt=()=>N.sort((a,b)=>a.t-b.t),chordAt=(n)=>N.some(z=>z!==n&&Math.abs(z.t-n.t)<.012);
- if(DI>=1&&V&&V.drops&&B&&B.length){let k=0;for(const d of V.drops){if(k>=3)break;let bi=0;while(bi<B.length&&B[bi]<d-.01)bi++;if(bi<4)continue;const a=B[bi-4],e=d-.15;if(e-a<.8||N.some(n=>n.e&&n.t<a&&n.e>a-.1))continue;if(E4&&N.filter(n=>n.t>=a-.1&&n.t<d-.05).length>(DI<=1?1:2))continue;
+ if(DI>=1&&V&&V.drops&&B&&B.length){let k=0;for(const d of V.drops){if(k>=3)break;let bi=0;while(bi<B.length&&B[bi]<d-.01)bi++;if(bi<4)continue;const a=B[bi-4],e=d-.15;if(e-a<.8||N.some(n=>n.e&&n.t<a&&n.e>a-.1))continue;if(E4&&(N.some(n=>n.p&&n.t>=a-.6&&n.t<d)||N.filter(n=>n.t>=a-.1&&n.t<d-.05).length>(DI<=1?1:2)))continue;
   N=N.filter(n=>!(n.t>=a-.1&&n.t<d-.05));const inw=(k+(song.seed||0))%2===1,tk=B.filter(b=>b>a+.05&&b<e-.05);N.push({t:a,l:inw?0:1,e,p:[[a,inw?0:1],[e,inw?1:0]],tk:tk.slice()},{t:a,l:inw?3:2,e,p:[[a,inw?3:2],[e,inw?2:3]],tk:tk.slice()});k++}srt()}
  let dh=0,last=-99;const maxDH=[2,4,6,8,10][DI],hv=x=>{const v=Math.sin(x)*43758.5453;return v-Math.floor(v)};
  for(const h of N.slice()){if(dh>=maxDH)break;if(!h.e||h.p||h.f||h.e-h.t<(DI?.7:1)||h.t-last<8||!(hl(h.t)||en(h.t)>.55)||chordAt(h)||(song.seed&&hv(h.t*12.9898+song.seed%1000)<.3))continue;
